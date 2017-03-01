@@ -15,6 +15,9 @@ namespace http {
     {
       std::string uri_prefix_;
       std::string remote_host_;
+			std::string protocol_;
+			std::string path_;
+			std::string url_;
       int remote_port_;
       bool url_decode(const std::string& in, std::string& out);
     public:

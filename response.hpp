@@ -36,6 +36,7 @@ namespace http {
       std::string ToString();
       static Response stock_response(ResponseCode status);
         ResponseCode ret_response_code() {return response_code_;}
+	static std::unique_ptr<Response> Parse(const std::string& raw_res);
     private:
       
       using Headers = std::vector<std::pair<std::string, std::string>>;

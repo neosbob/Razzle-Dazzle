@@ -13,7 +13,7 @@ RequestHandler::Status ProxyHandler::Init(const std::string& uri_prefix, const N
     bool remote_port_found = false;
     
 
-    if (config.statements_.size != 2)
+    if (config.statements_.size() != 2)
         return RequestHandler::Status::NOT_OK;
     else
     {
@@ -26,9 +26,14 @@ RequestHandler::Status ProxyHandler::Init(const std::string& uri_prefix, const N
 	    }
             else if (statement->tokens_[0] == "remote_port" && statement->tokens_.size() == 2)
             {
-	        remote_port_ = std::stoi(statement->tokens_[1]);
+	        	remote_port_ = std::stoi(statement->tokens_[1]);
                 remote_port_found = true;
 	    }
+			else if (statement->tokens_[0]=="url" && statement->tokens_.size() == 2)
+			{
+				url_ = std::stoi(statement->tokens_[1]);
+				
+			}
             else 
                 return RequestHandler::Status::NOT_OK;
         }

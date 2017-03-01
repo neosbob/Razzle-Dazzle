@@ -15,7 +15,7 @@ clean-emacs:
 	rm *~
 
 clean-tests:
-	rm -f config_parser_test server_test connection_test response_test request_handler_test echo_handler_test static_handler_test request_test response_test
+	rm -f config_parser_test server_test connection_test response_test request_handler_test echo_handler_test static_handler_test request_test response_test proxy_handler_test
 
 test:
 	g++ -std=c++11 -isystem ${GTEST_DIR}/include -I${GTEST_DIR} -pthread -c ${GTEST_DIR}/src/gtest-all.cc
@@ -36,6 +36,9 @@ coverage: test
 clean-coverage:
 	rm -rf *gcov *gcda *gcno *.dSYM
 
+client:
+	g++ http_client.cc response.cc request.cc -o http_client $(STD_FLAGS) $(COV_FLAGS)
+
 handler_test:
 	g++ -std=c++0x -isystem ${GTEST_DIR}/include -pthread server_info_test.cc server_info.cc response.cc ${GTEST_DIR}/src/gtest_main.cc libgtest.a -o server_info_test -lboost_system -fprofile-arcs -ftest-coverage
 	./server_info_test
@@ -49,4 +52,6 @@ handler_test:
 	./static_handler_test
 	g++ request_handler_test.cc request_handler.cc static_handler.cc response.cc request.cc mime-types.cc -o request_handler_test $(STD_FLAGS) $(COV_FLAGS)
 	./request_handler_test
+	g++ proxy_handler_test.cc proxy_handler.cc request_handler.cc response.cc request.cc mime-types.cc -o proxy_handler_test $(STD_FLAGS) $(COV_FLAGS)
+	./proxy_handler_test
 
