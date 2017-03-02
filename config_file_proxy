@@ -1,0 +1,13 @@
+# This is a comment.
+
+port 3001;  # This is also a comment.
+
+# Default response handler if no handlers match.
+default NotFoundHandler {
+    root;
+}
+
+path / ProxyHandler {
+    remote_host http://www.ucla.edu;
+    remote_port 80;
+}
