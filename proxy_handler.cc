@@ -14,8 +14,9 @@ RequestHandler::Status ProxyHandler::Init(const std::string& uri_prefix, const N
 {
     uri_prefix_ = uri_prefix;
     bool remote_host_found = false;
+    bool remote_port_found = false;
 
-    if (config.statements_.size() != 1)
+    if (config.statements_.size() != 2)
         return RequestHandler::Status::NOT_OK;
     else
     {
@@ -25,16 +26,21 @@ RequestHandler::Status ProxyHandler::Init(const std::string& uri_prefix, const N
             {
 	        remote_host_whole_url = statement->tokens_[1];
                 remote_host_found = parse_remote_url(remote_host_whole_url);
-		if(remote_host_found == true)
-		    return RequestHandler::Status::OK;
-                else
-		    return RequestHandler::Status::NOT_OK; 
 	    }
+            else if (statement->tokens_[0] == "remote_port" && statement->tokens_.size() == 2)
+	    {
+                remote_port_ = statement->tokens_[1];
+                remote_port_found = true;
+            }
             else 
                 return RequestHandler::Status::NOT_OK;
         }
-	return RequestHandler::Status::NOT_OK;
     }
+
+    if(remote_host_found && remote_port_found)
+        return RequestHandler::Status::OK;
+    else
+        return RequestHandler::Status::NOT_OK; 
 }
 
 bool ProxyHandler::parse_remote_url(std::string remote_host_url)
@@ -64,7 +70,7 @@ bool ProxyHandler::parse_remote_response(std::string remote_response)
     std::size_t status_found = remote_response.find("\r\n");
     if(status_found == std::string::npos)
 	return false;
-    response_status = remote_response.substr(0, status_found + 1);
+    response_status = remote_response.substr(0, status_found + 2);
     rest = remote_response.substr(status_found + 2);        
 
     std::size_t header_found = rest.find("\r\n\r\n");
@@ -148,10 +154,16 @@ bool ProxyHandler::url_decode(const std::string& in, std::string& out)
 
 RequestHandler::Status ProxyHandler::HandleRequest(const Request& request, Response* response)
 {
+  std::string host_url = host_url_;
+  std::string path = path_;
+  response_status = "HTTP/1.1 302 Found\r\n";
+  while(response_status == "HTTP/1.1 302 Found\r\n")
+  {
     std::string request_uri = request.uri();
     boost::asio::io_service io_service;
     tcp::resolver resolver(io_service);
-    tcp::resolver::query query(host_url_, "80");
+    std::cout<<host_url<<std::endl;
+    tcp::resolver::query query(host_url, remote_port_);
     tcp::resolver::iterator endpoint_iterator = resolver.resolve(query);
     tcp::resolver::iterator iter = endpoint_iterator;
     tcp::resolver::iterator end;
@@ -167,15 +179,9 @@ RequestHandler::Status ProxyHandler::HandleRequest(const Request& request, Respo
 
     std::cout << "Successfully connected!\n";
 
-    std::string request_string = std::string("GET ") + path_ + request_uri.substr(uri_prefix_.size()-1) + " HTTP/1.1\r\n" + "Host: " + host_url_ + ":" + "80";
+    std::string request_string = std::string("GET ") + request_uri.substr(uri_prefix_.size()-1) + " HTTP/1.1\r\n" + "Host: " + host_url + ":" + remote_port_;
 
-
-    request_string += std::string("\r\nConnection: keep-alive\r\n") +
-                      "Accept: text/html\r\n" +
-                      "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8\r\n" +
-                      "Accept-Encoding: gzip, deflate, sdch\r\n" +
-                      "Accept-Language: en-US,en;q=0.8\r\n" +
-                      "\r\n";
+    request_string += std::string("\r\nConnection: keep-alive\r\n") + "Accept: text/html\r\n" + "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8\r\n" + "Accept-Encoding: gzip, deflate, sdch\r\n" + "Accept-Language: en-US,en;q=0.8\r\n" + "\r\n";
                                      
     std::cout << request_string<<std::endl;
 
@@ -211,16 +217,44 @@ RequestHandler::Status ProxyHandler::HandleRequest(const Request& request, Respo
     if (remote_response_status == false)
         return RequestHandler::Status::NOT_OK;
 
-    response->SetStatus(Response::ResponseCode::ok);
-    for (std::vector<std::pair<std::string, std::string>>::const_iterator it = headers_.begin(); it != headers_.end(); it++)
-    {
-        response->AddHeader(it->first, it->second);
+    std::cout<< response_status<<std::endl;
+    if (response_status == "HTTP/1.1 302 Found\r\n"){
+        for (std::vector<std::pair<std::string, std::string>>::const_iterator it = headers_.begin(); it != headers_.end(); it++)
+        {
+            if(it->first == "Location")
+                host_url = it->second;
+        }
+        const std::string http_protocol = "http://";
+        if (host_url.substr(0, http_protocol.size()) == http_protocol){
+            host_url = host_url.substr(http_protocol.size());
+            std::size_t path_found = host_url.find('/');
+            if(path_found != std::string::npos) 
+            {
+                path = host_url.substr(path_found);
+                host_url = host_url.substr(0, path_found);
+            }
+            else 
+            {
+                host_url = host_url.substr(0);
+	        path = "";
+            }
+        }
     }
-    //response->AddHeader("Content-Type", "text/html");
-    //response->AddHeader("Content-Encoding", "gzip");
-    //response->SetBody(request.raw_request());
-    response->SetBody(response_body);
+    else if (response_status == "HTTP/1.1 200 OK\r\n")
+    {
+    	response->SetStatus(Response::ResponseCode::ok);
+
+        for (std::vector<std::pair<std::string, std::string>>::const_iterator it = headers_.begin(); it != headers_.end(); it++)
+        {
+            response->AddHeader(it->first, it->second);
+        }
+        //response->AddHeader("Content-Type", "text/html");
+        //response->AddHeader("Content-Encoding", "gzip");
+        //response->SetBody(request.raw_request());
+        response->SetBody(response_body);
+    }
     headers_.clear();
+  }
 
     return Status::OK;
 }
